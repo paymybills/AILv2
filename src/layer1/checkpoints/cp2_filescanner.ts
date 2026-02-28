@@ -1,11 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Folders to skip — these are never part of source code
 const EXCLUDE_DIRS = new Set([
     'node_modules', '.git', 'venv', '.venv',
     '__pycache__', 'dist', 'build', '.next',
-    'out', 'target', '.ail', 'AIL_analysis'
+    'out', 'target', '.ail', 'env', 'AutoAI_ENV'
 ]);
 
 export interface ScannedFile {
@@ -15,23 +14,21 @@ export interface ScannedFile {
 }
 
 export interface FileScanResult {
+    extensionCounts: Record<string, number>;  // ← moved to top
     totalFiles:      number;
     files:           ScannedFile[];
-    extensionCounts: Record<string, number>; // { '.py': 23, '.js': 10 }
 }
 
-export function runCheckpoint2(workspacePath: string, layer1Dir: string): FileScanResult {
+export function runCheckpoint2(workspacePath: string, analysisDir: string): FileScanResult {
 
     const files: ScannedFile[] = [];
 
-    // Recursive walk
     function walk(dirPath: string) {
         let entries: fs.Dirent[];
-
         try {
             entries = fs.readdirSync(dirPath, { withFileTypes: true });
         } catch {
-            return; // skip folders we can't read
+            return;
         }
 
         for (const entry of entries) {
@@ -59,17 +56,21 @@ export function runCheckpoint2(workspacePath: string, layer1Dir: string): FileSc
         extensionCounts[ext] = (extensionCounts[ext] || 0) + 1;
     }
 
+    // Sort extensionCounts by count descending
+    const sortedExtensionCounts = Object.fromEntries(
+        Object.entries(extensionCounts).sort(([, a], [, b]) => b - a)
+    );
+
     const result: FileScanResult = {
-        totalFiles: files.length,
-        files,
-        extensionCounts
+        extensionCounts: sortedExtensionCounts,  // ← first
+        totalFiles:      files.length,
+        files
     };
 
-    // Save to file
-    const outputPath = path.join(layer1Dir, 'file_scan.json');
+    const outputPath = path.join(analysisDir, 'file_scan.json');
     fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
 
-    console.log(`AIL CP2 | Found ${files.length} files | Saved file_scan.json`);
+    console.log(`AIL CP2 | Found ${files.length} files | Saved analysis/file_scan.json`);
 
-    return result; // orchestrator needs this for CP3 onwards
+    return result;
 }
