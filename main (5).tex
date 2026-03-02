@@ -1,0 +1,149 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{tabularx}
+
+% ATS-friendly section formatting
+\titleformat{\section}{\large\bfseries\uppercase}{}{0em}{}[\titlerule]
+\titlespacing{\section}{0pt}{6pt}{4pt}
+
+\titleformat{\subsection}{\bfseries}{}{0em}{}
+\titlespacing{\subsection}{0pt}{3pt}{2pt}
+
+\hypersetup{
+    colorlinks=true,
+    urlcolor=black,
+    pdfborder={0 0 0},
+    pdftitle={Aniruddha Roy Resume},
+    pdfauthor={Aniruddha Roy}
+}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1pt}
+
+\begin{document}
+
+% Header
+\begin{center}
+    {\Huge \textbf{Aniruddha Roy}} \\[5pt]
+    \href{mailto:anni.kelp@gmail.com}{anni.kelp@gmail.com} \quad $|$ \quad
+    +91 70879 15892 \quad $|$ \quad
+    \href{https://www.linkedin.com/in/anni-kelp}{linkedin.com/in/anni-kelp} \quad $|$ \quad
+    \href{https://github.com/anni-kelp}{github.com/anni-kelp}
+\end{center}
+
+\vspace{0.1cm}
+
+% Summary
+\section{Professional Summary}
+B.Tech Mathematics and Computing student (Expected 2027, Manipal Institute of Technology) with strong foundations in data structures, algorithms, and software engineering. Experienced building end-to-end pipelines, designing modular systems, and solving complex computational problems across ML, signal processing, and computer vision. Passionate about writing clean, efficient, and scalable code—excited to contribute to Amazon's customer-obsessed engineering culture.
+
+% Education
+\section{Education}
+\textbf{Bachelor of Technology in Mathematics and Computing} \hfill \textbf{Expected May 2027} \\
+Manipal Institute of Technology, Manipal \\
+\textit{Relevant Coursework:} Data Structures \& Algorithms, Advanced Programming (C++), Computational Linear Algebra, Discrete Mathematics, Machine Learning, Database Systems, Object-Oriented Programming, Real Analysis
+
+% Experience
+\section{Experience}
+
+\subsection{Research Collaborator -- Earth Observation ML Systems}
+\textbf{Academic Research Collaboration with SatSure} \hfill \textbf{February 2026 -- Present} \\
+\textit{Under Prof. Ujjwal Mishra, Manipal Institute of Technology}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Designing and implementing scalable geospatial ML pipelines to process large-scale satellite imagery datasets, optimizing data ingestion and transformation stages for efficiency
+    \item Engineering spatiotemporal feature extraction modules for multi-modal sensor data, reducing preprocessing runtime through vectorized operations
+    \item Conducting systematic robustness evaluations and failure analysis to improve model reliability and generalization across geographic distributions
+\end{itemize}
+
+\subsection{Research Intern -- Biomedical ML Engineering}
+\textbf{IIT Kharagpur, Biomedical Engineering Department} \hfill \textbf{June 2025 -- Present} \\
+\textit{Under Dr. Madhuparna Das}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Built end-to-end Graph Neural Network (GNN) pipelines on fMRI-derived brain connectivity graphs for Autism Spectrum Disorder (ASD) classification
+    \item Engineered data preprocessing modules to extract, normalize, and validate functional connectivity matrices from raw neuroimaging signals, ensuring data integrity at scale
+    \item Designed modular neural architectures with emphasis on testability and reproducibility; conducted ablation studies to isolate performance bottlenecks
+\end{itemize}
+
+\subsection{Research Intern -- Systems and ML Engineering}
+\textbf{Manipal Institute of Technology} \hfill \textbf{September 2024 -- April 2025} \\
+\textit{Under Dr. Girisha S}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Implemented meta-learning and few-shot learning systems using episodic training strategies, improving model adaptability under data-scarce conditions
+    \item Designed custom neural architecture components to improve training stability and reduce variance under distribution shift, informed by systematic experimentation
+\end{itemize}
+
+\subsection{Applied Mathematician / AI Systems Evaluator}
+\textbf{Outlier} \hfill \textbf{January 2025 -- Present} \\
+\textit{Part-time}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Engineered rigorous test cases and edge-case scenarios to stress-test reasoning and identify failure modes in production AI systems
+    \item Delivered structured quality evaluations that improved model output consistency and error detection rates across multiple reasoning domains
+    \item Collaborated with reinforcement learning teams on reward function design, validation metrics, and training stability improvements
+\end{itemize}
+
+\subsection{Head of Machine Learning}
+\textbf{The Turing Circle} (Student Technical Club) \hfill \textbf{December 2024 -- Present}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Leading a team of 10+ student researchers across applied ML projects, driving project scoping, architecture decisions, and code review processes
+    \item Established best practices for experimentation, ablation studies, and collaborative development; mentored junior members in software engineering fundamentals
+\end{itemize}
+
+% Projects
+\section{Projects}
+
+\subsection{AIL -- Architectural Intelligence Layer}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Built a scalable VS Code extension in TypeScript to parse massive repositories into structured Knowledge Graphs, enabling LLMs to reason about global architecture without context overflow
+    \item Engineered a robust 4-layer analysis pipeline integrating batched AST parsing via \texttt{web-tree-sitter} for function call graphs, Git history for file churn analytics, and data unification
+    \item Designed an interactive webview dashboard featuring physics-based topology maps and structural complexity metrics to optimize large-scale codebase comprehension
+\end{itemize}
+
+\subsection{FastStructQA -- Production-Grade Document QA System}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Designed and built a bifurcated document QA pipeline handling both scanned and digital PDFs using OCR, DocLayNet layout parsing, and transformer-based encoders
+    \item Implemented a full retrieval stack: semantic chunking, dense embedding retrieval, cross-encoder reranking, and feedback-driven index updates
+    \item Focused on modular, extensible architecture with failure analysis and robustness testing across real-world document variability; system designed for production deployment
+\end{itemize}
+
+\subsection{Backtesting Engine \& RL Trading Agent}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Engineered a modular, vectorized backtesting framework in Python (pandas, NumPy) for evaluating financial strategies at scale; implemented configurable position sizing and portfolio-level risk metrics
+    \item Designed a PPO-based reinforcement learning agent with cascaded LSTMs for temporal feature extraction; integrated agent with the backtesting engine to evaluate reward stability and convergence behavior
+    \item Demonstrated software design principles: clean separation of concerns, extensible strategy interface, and data pipeline abstraction
+\end{itemize}
+
+\subsection{Active Noise Cancellation \& Deep Audio Denoising}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Implemented a real-time ANC system using the Filtered-x LMS (FxLMS) adaptive filtering algorithm; built FIR filter simulations with step-size tuning and convergence diagnostics
+    \item Built a deep audio denoising pipeline using a Deep Complex Convolutional Recurrent Network (DCCRN) operating in the complex STFT domain
+    \item Benchmarked classical DSP-based ANC vs.\ neural denoising across non-stationary noise environments with quantitative performance metrics
+\end{itemize}
+
+\subsection{PhotoOrbit -- Depth-Based 3D Photosphere Generator}
+\begin{itemize}[leftmargin=15pt, itemsep=1pt]
+    \item Built a MiDaS-based monocular depth estimation pipeline to generate mesh-based 3D photospheres from single images
+    \item Implemented real-time parallax rendering using OpenGL/Open3D with configurable camera orbit controls
+\end{itemize}
+
+% Skills
+\section{Technical Skills}
+\textbf{Languages:} Python, C++, SQL, Bash \\
+\textbf{Data Structures \& Algorithms:} Arrays, Linked Lists, Trees, Graphs, Heaps, Hash Maps, Sorting, Dynamic Programming, Greedy, BFS/DFS \\
+\textbf{Frameworks \& Libraries:} PyTorch, TensorFlow, Scikit-learn, NumPy, pandas, OpenCV, PyTorch Lightning \\
+\textbf{Tools:} Git, Linux/Unix, Docker (basic), Jupyter \\
+\textbf{Domains:} Machine Learning Systems, Signal Processing, NLP, Computer Vision, Reinforcement Learning \\
+\textbf{CS Fundamentals:} OOP, System Design (basics), Distributed Computing (conceptual), REST APIs
+
+% Certifications
+\section{Certifications \& Achievements}
+\textbf{Deep Learning Specialization} -- DeepLearning.AI, Coursera (2024) \\
+\textit{Neural Networks, Optimization, CNNs, Sequence Models, Hyperparameter Tuning} \\[3pt]
+\textbf{Advanced Neurobiology I} -- Peking University, Coursera (2025)
+
+\end{document}

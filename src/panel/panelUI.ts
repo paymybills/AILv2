@@ -59,7 +59,7 @@ export function getPanelHTML(): string {
         /* ── Pipeline cards ── */
         .pipeline-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(3, 1fr);
             gap: 10px;
             margin-bottom: 16px;
         }
@@ -281,6 +281,69 @@ export function getPanelHTML(): string {
             background-color: var(--vscode-editor-background);
             margin-bottom: 20px;
         }
+
+        /* ── Chat Assistant ── */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 120px);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            background: var(--vscode-editor-background);
+        }
+        .chat-history {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .chat-bubble {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        .chat-bubble.ai {
+            align-self: flex-start;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-panel-border);
+        }
+        .chat-input-area {
+            display: flex;
+            padding: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            gap: 8px;
+        }
+        .chat-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            background: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            resize: none;
+            font-family: var(--vscode-font-family);
+        }
+        .chat-send {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 4px;
+            padding: 0 16px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .chat-send:hover { background: var(--vscode-button-hoverBackground); }
+        .chat-disabled { opacity: 0.5; pointer-events: none; }
         
     </style>
 </head>
@@ -294,6 +357,7 @@ export function getPanelHTML(): string {
         <div class="tab" onclick="switchTab('complexity', this)">Complexity</div>
         <div class="tab" onclick="switchTab('git', this)">Git Intel</div>
         <div class="tab" onclick="switchTab('graph', this)">Graph</div>
+        <div class="tab" onclick="switchTab('assistant', this)">Assistant ✨</div>
     </div>
 </div>
 
@@ -328,6 +392,13 @@ export function getPanelHTML(): string {
                 <div class="layer-desc">Unified graph · Architecture summary</div>
                 <div class="layer-status"><div class="dot"></div><span id="pstatus-4">waiting</span></div>
                 <button id="pbtn-4" onclick="runPipeline(4)" disabled>Run</button>
+            </div>
+            <div class="pipe-card" id="pipe-5">
+                <div class="layer-num">Layer 5</div>
+                <div class="layer-title">GraphRAG Search</div>
+                <div class="layer-desc">Semantic nodes · Edge traversal</div>
+                <div class="layer-status"><div class="dot"></div><span id="pstatus-5">waiting</span></div>
+                <button id="pbtn-5" onclick="runPipeline(5)" disabled>Run</button>
             </div>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 6px;">
@@ -405,6 +476,19 @@ export function getPanelHTML(): string {
         <div id="arch-summary" style="white-space: pre-wrap; font-size: 12px; line-height: 1.6; padding: 12px; background: var(--vscode-input-background); border-radius: 6px; max-height: 500px; overflow-y: auto;"></div>
         <div class="no-data" id="graph-empty">Run Layer 4 to see the knowledge graph</div>
     </div>
+
+    <!-- ═══ ASSISTANT TAB ═══ -->
+    <div class="view" id="view-assistant">
+        <div class="chat-container">
+            <div class="chat-history" id="chat-history">
+                <div class="chat-bubble ai">Hello! I am AIL, your architectural intelligence assistant. Ask me anything about this codebase and I will query the GraphRAG engine!</div>
+            </div>
+            <div class="chat-input-area" id="chat-controls">
+                <textarea id="chat-input" class="chat-input" rows="2" placeholder="Ask about architecture, routing, or specific components..." onkeydown="handleChatKey(event)"></textarea>
+                <button class="chat-send" onclick="sendChat()">Send</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -412,7 +496,7 @@ export function getPanelHTML(): string {
     let dashData = {};
     let entitySortField = 'name';
     let entitySortAsc = true;
-    const pipeState = [null, 'idle', 'locked', 'locked', 'locked'];
+    const pipeState = [null, 'idle', 'locked', 'locked', 'locked', 'locked'];
 
     function switchTab(name, target) {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -435,7 +519,7 @@ export function getPanelHTML(): string {
 
     function runAllPipeline() {
         // Reset states to idle (if not locked) to force a full run
-        for (let i = 1; i <= 4; i++) {
+        for (let i = 1; i <= 5; i++) {
             if (pipeState[i] !== 'locked') {
                 pipeState[i] = 'idle';
                 updatePipeCard(i);
@@ -446,7 +530,7 @@ export function getPanelHTML(): string {
 
     function purgeCache() {
         // Reset all states locally
-        for (let i = 1; i <= 4; i++) {
+        for (let i = 1; i <= 5; i++) {
             pipeState[i] = 'idle';
             updatePipeCard(i);
         }
@@ -466,13 +550,13 @@ export function getPanelHTML(): string {
     function markLayerComplete(n) {
         pipeState[n] = 'complete';
         updatePipeCard(n);
-        if (n < 4) {
+        if (n < 5) {
             pipeState[n + 1] = 'idle';
             updatePipeCard(n + 1);
         }
         // Auto-continue pipeline
         setTimeout(() => {
-            for (let i = n + 1; i <= 4; i++) {
+            for (let i = n + 1; i <= 5; i++) {
                 if (pipeState[i] === 'idle') { runPipeline(i); return; }
             }
             // All done — refresh data
@@ -740,9 +824,51 @@ export function getPanelHTML(): string {
 
     function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+    // ── Chat functions ──
+    function handleChatKey(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendChat();
+        }
+    }
+
+    function sendChat() {
+        const input = document.getElementById('chat-input');
+        const query = input.value.trim();
+        if (!query) return;
+
+        appendChat('user', query);
+        input.value = '';
+        
+        // Disable UI
+        document.getElementById('chat-controls').classList.add('chat-disabled');
+        
+        vscode.postMessage({ command: 'askGraphRAG', query: query });
+    }
+
+    let currentAiBubble = null;
+    function appendChat(role, text) {
+        const history = document.getElementById('chat-history');
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble ' + role;
+        bubble.textContent = text;
+        history.appendChild(bubble);
+        history.scrollTop = history.scrollHeight;
+        if (role === 'ai') currentAiBubble = bubble;
+        return bubble;
+    }
+
     // ── Message handling ──
     window.addEventListener('message', e => {
         const msg = e.data;
+        if (msg.command === 'chatResponse') {
+            if (msg.text === '...') {
+                appendChat('ai', 'Thinking (running GraphRAG query)...');
+            } else {
+                if (currentAiBubble) currentAiBubble.textContent = msg.text;
+                document.getElementById('chat-controls').classList.remove('chat-disabled');
+            }
+        }
         if (msg.command === 'layerStatus') {
             if (msg.status === 'complete') markLayerComplete(msg.layer);
             else if (msg.status === 'running') {
@@ -759,8 +885,9 @@ export function getPanelHTML(): string {
                 if (ls.l2) { pipeState[2] = 'complete'; updatePipeCard(2); }
                 if (ls.l3) { pipeState[3] = 'complete'; updatePipeCard(3); }
                 if (ls.l4) { pipeState[4] = 'complete'; updatePipeCard(4); }
+                if (ls.l5) { pipeState[5] = 'complete'; updatePipeCard(5); }
                 // Unlock next
-                for (let i = 1; i <= 4; i++) {
+                for (let i = 1; i <= 5; i++) {
                     if (pipeState[i] !== 'complete' && (i === 1 || pipeState[i-1] === 'complete')) {
                         pipeState[i] = 'idle';
                         updatePipeCard(i);

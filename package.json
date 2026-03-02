@@ -23,7 +23,32 @@
         "command": "ail-extension.runAIL",
         "title": "Run AIL Analysis"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "AIL",
+      "properties": {
+        "ail.azureOpenAiEndpoint": {
+          "type": "string",
+          "default": "",
+          "description": "Your Azure OpenAI endpoint URL (e.g. https://my-resource.openai.azure.com/)"
+        },
+        "ail.azureOpenAiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Azure OpenAI API key"
+        },
+        "ail.azureOpenAiDeployment": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "The deployment name of your Chat model in Azure OpenAI"
+        },
+        "ail.azureOpenAiEmbedDeployment": {
+          "type": "string",
+          "default": "text-embedding-3-small",
+          "description": "The deployment name of your Embeddings model in Azure OpenAI"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

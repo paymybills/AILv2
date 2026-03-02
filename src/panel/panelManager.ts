@@ -6,6 +6,8 @@ import { runLayer1 } from '../layer1/orchestrator';
 import { runLayer2 } from '../layer2/orchestrator';
 import { runLayer3 } from '../layer3/orchestrator';
 import { runLayer4 } from '../layer4/orchestrator';
+import { runLayer5 } from '../layer5/orchestrator';
+import { askQuestion } from '../layer5/rag/rag_engine';
 
 export class PanelManager {
     private static currentPanel: vscode.WebviewPanel | undefined;
@@ -82,6 +84,29 @@ export class PanelManager {
                         }, 50);
                         break;
 
+                    case 'runLayer5':
+                        panel.webview.postMessage({ command: 'layerStatus', layer: 5, status: 'running' });
+                        runLayer5().then(() => {
+                            panel.webview.postMessage({ command: 'layerStatus', layer: 5, status: 'complete' });
+                        }).catch(err => {
+                            vscode.window.showErrorMessage(`AIL Layer 5 failed: ${err}`);
+                            panel.webview.postMessage({ command: 'layerStatus', layer: 5, status: 'error' });
+                        });
+                        break;
+
+                    case 'askGraphRAG':
+                        const wsfRAG = vscode.workspace.workspaceFolders;
+                        if (!wsfRAG) { break; }
+
+                        panel.webview.postMessage({ command: 'chatResponse', text: '...' }); // loading state
+
+                        askQuestion(message.query, wsfRAG[0].uri.fsPath).then(answer => {
+                            panel.webview.postMessage({ command: 'chatResponse', text: answer });
+                        }).catch(err => {
+                            panel.webview.postMessage({ command: 'chatResponse', text: `Error: ${err.message}` });
+                        });
+                        break;
+
                     case 'requestData':
                         PanelManager.sendDashboardData(panel);
                         break;
@@ -152,6 +177,7 @@ export class PanelManager {
             l2: fs.existsSync(path.join(ailRoot, 'layer2', 'meta-data.json')),
             l3: fs.existsSync(path.join(ailRoot, 'layer3', 'meta-data.json')),
             l4: fs.existsSync(path.join(ailRoot, 'layer4', 'meta-data.json')),
+            l5: fs.existsSync(path.join(ailRoot, 'layer5', 'meta-data.json')),
         };
 
         panel.webview.postMessage({ command: 'dashboardData', data });
