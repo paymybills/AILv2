@@ -633,7 +633,10 @@ export function getPanelHTML(): string {
                 return '<div class="commit-item">'
                     + '<span class="commit-hash">' + c.hash.slice(0, 7) + '</span>'
                     + '<span class="commit-msg">' + esc(c.message) + '</span>'
-                    + '<span class="commit-meta">' + esc(c.author) + '<br>' + date + '</span>'
+                    + '<span class="commit-meta">'
+                        + esc(c.author) + '<br>'
+                        + date + ' &bull; <span style="color: var(--vscode-charts-green)">+' + (c.insertions || 0) + '</span> <span style="color: var(--vscode-charts-red)">-' + (c.deletions || 0) + '</span>'
+                    + '</span>'
                     + '</div>';
             }).join('');
         }
