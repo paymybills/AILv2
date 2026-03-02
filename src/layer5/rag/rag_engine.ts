@@ -82,9 +82,12 @@ Do not guess. If the answer is not in the context, say so.
 CONTEXT FOR CURRENT QUESTION:
 ${contextText}`;
 
+        // Truncate history to the latest 6 messages (3 conversational turns) to prevent token bleed
+        const recentHistory = history.slice(-6);
+
         const apiMessages = [
             { role: 'system', content: systemPrompt },
-            ...history,
+            ...recentHistory,
             { role: 'user', content: query }
         ];
 
