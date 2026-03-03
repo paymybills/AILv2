@@ -171,9 +171,9 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
 
     // ── Load Layer 3 data (enrich file nodes with churn) ──
     const churnPath = path.join(workspacePath, '.ail', 'layer3', 'analysis', 'file_churn.json');
+    const churnMap = new Map<string, { churnScore: number; commits: number; isHot: boolean; isStale: boolean }>();
     if (fs.existsSync(churnPath)) {
         const churnData = JSON.parse(fs.readFileSync(churnPath, 'utf-8'));
-        const churnMap = new Map<string, { churnScore: number; commits: number; isHot: boolean; isStale: boolean }>();
         for (const f of churnData.files || []) {
             churnMap.set(f.file, { churnScore: f.churnScore, commits: f.commits, isHot: f.isHot, isStale: f.isStale });
         }
@@ -188,6 +188,77 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
                     node.metadata.isStale = churn.isStale;
                 }
             }
+        }
+    }
+
+    // ── Load Layer 3 co-change coupling data ──
+    const coChangePath = path.join(workspacePath, '.ail', 'layer3', 'analysis', 'co_change.json');
+    const couplingMap = new Map<string, number>(); // file → max coupling strength
+    if (fs.existsSync(coChangePath)) {
+        const coChangeData = JSON.parse(fs.readFileSync(coChangePath, 'utf-8'));
+        for (const pair of coChangeData.pairs || []) {
+            const existing = couplingMap.get(pair.fileA) || 0;
+            couplingMap.set(pair.fileA, Math.max(existing, pair.couplingStrength));
+            const existingB = couplingMap.get(pair.fileB) || 0;
+            couplingMap.set(pair.fileB, Math.max(existingB, pair.couplingStrength));
+        }
+    }
+
+    // ── Load Layer 2 complexity data for RPI ──
+    const complexityPath = path.join(workspacePath, '.ail', 'layer2', 'analysis', 'complexity.json');
+    const complexityMap = new Map<string, number>(); // "file::name" → cyclomatic complexity
+    if (fs.existsSync(complexityPath)) {
+        const complexityData = JSON.parse(fs.readFileSync(complexityPath, 'utf-8'));
+        for (const fn of complexityData.functions || []) {
+            const key = `${fn.file}::${fn.name}`;
+            complexityMap.set(key, fn.cyclomaticComplexity || 1);
+        }
+    }
+
+    // ── Compute Risk Priority Index (RPI) ──
+    // Collect raw values for normalization
+    const rawComplexities: number[] = [];
+    const rawChurns: number[] = [];
+    const rawCouplings: number[] = [];
+
+    for (const node of nodes) {
+        if (node.type === 'function' || node.type === 'method') {
+            const cKey = node.file ? `${node.file}::${node.name}` : node.id;
+            const complexity = complexityMap.get(cKey) || complexityMap.get(node.id) || 1;
+            const fileChurn = node.file ? (churnMap.get(node.file)?.churnScore || 0) : 0;
+            const coupling = node.file ? (couplingMap.get(node.file) || 0) : 0;
+
+            rawComplexities.push(complexity);
+            rawChurns.push(fileChurn);
+            rawCouplings.push(coupling);
+        }
+    }
+
+    // Min-max normalization helpers
+    const normalize = (val: number, arr: number[]): number => {
+        const min = Math.min(...arr);
+        const max = Math.max(...arr);
+        return max === min ? 0 : (val - min) / (max - min);
+    };
+
+    for (const node of nodes) {
+        if (node.type === 'function' || node.type === 'method') {
+            const cKey = node.file ? `${node.file}::${node.name}` : node.id;
+            const complexity = complexityMap.get(cKey) || complexityMap.get(node.id) || 1;
+            const fileChurn = node.file ? (churnMap.get(node.file)?.churnScore || 0) : 0;
+            const coupling = node.file ? (couplingMap.get(node.file) || 0) : 0;
+
+            const normComplexity = rawComplexities.length > 1 ? normalize(complexity, rawComplexities) : 0;
+            const normChurn = rawChurns.length > 1 ? normalize(fileChurn, rawChurns) : 0;
+            const normCoupling = rawCouplings.length > 1 ? normalize(coupling, rawCouplings) : 0;
+
+            const rpi = parseFloat(((normComplexity * 0.4) + (normChurn * 0.4) + (normCoupling * 0.2)).toFixed(3));
+
+            node.metadata.riskScore = rpi;
+            node.metadata.riskLevel = rpi >= 0.75 ? 'critical' : rpi >= 0.5 ? 'high' : rpi >= 0.25 ? 'medium' : 'low';
+            node.metadata.complexity = complexity;
+            node.metadata.fileChurn = fileChurn;
+            node.metadata.coupling = coupling;
         }
     }
 

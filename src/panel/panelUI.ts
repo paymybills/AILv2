@@ -354,7 +354,7 @@ export function getPanelHTML(): string {
     <div class="tabs">
         <div class="tab active" onclick="switchTab('pipeline', this)">Pipeline</div>
         <div class="tab" onclick="switchTab('entities', this)">Entities</div>
-        <div class="tab" onclick="switchTab('complexity', this)">Complexity</div>
+        <div class="tab" onclick="switchTab('complexity', this)">Risk</div>
         <div class="tab" onclick="switchTab('git', this)">Git Intel</div>
         <div class="tab" onclick="switchTab('graph', this)">Graph</div>
         <div class="tab" onclick="switchTab('assistant', this)">Assistant ✨</div>
@@ -428,24 +428,26 @@ export function getPanelHTML(): string {
         <div class="no-data" id="entities-empty">Run Layer 2 to see entities</div>
     </div>
 
-    <!-- ═══ COMPLEXITY TAB ═══ -->
+    <!-- ═══ RISK TAB ═══ -->
     <div class="view" id="view-complexity">
         <div id="complexity-stats" class="stats-row"></div>
-        <div class="section-title">Functions by Complexity</div>
+        <div class="section-title">Risk Priority Index (RPI) Leaderboard</div>
+        <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-bottom: 10px;">RPI = 0.4 x complexity + 0.4 x churn + 0.2 x coupling. Higher = more dangerous.</div>
         <div class="scroll-box">
             <table class="data-table" id="complexity-table">
                 <thead><tr>
                     <th>Function</th>
                     <th>File</th>
-                    <th>Cyclomatic</th>
-                    <th>Nesting</th>
-                    <th>Lines</th>
+                    <th>RPI</th>
+                    <th>Risk</th>
+                    <th>Complexity</th>
+                    <th>Churn</th>
                     <th>Visual</th>
                 </tr></thead>
                 <tbody id="complexity-tbody"></tbody>
             </table>
         </div>
-        <div class="no-data" id="complexity-empty">Run Layer 2 to see complexity</div>
+        <div class="no-data" id="complexity-empty">Run Layers 1-4 to see risk analysis</div>
     </div>
 
     <!-- ═══ GIT TAB ═══ -->
@@ -466,13 +468,23 @@ export function getPanelHTML(): string {
             </table>
         </div>
         <div class="no-data" id="git-empty">Run Layer 3 to see git intelligence</div>
+        <div class="section-title" style="margin-top: 20px;">Blast Radius</div>
+        <div id="blast-radius-container" style="font-size: 12px;"></div>
+        <div class="section-title" style="margin-top: 20px;">Tightly Coupled Files</div>
+        <div id="coupling-container" style="font-size: 12px;"></div>
     </div>
 
     <!-- ═══ GRAPH TAB ═══ -->
     <div class="view" id="view-graph">
         <div id="graph-stats" class="stats-row"></div>
+        <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+            <button class="run-all-btn" style="margin-top:0;" onclick="setGraphView('overall')">Overall</button>
+            <button class="run-all-btn" style="margin-top:0; background: var(--vscode-charts-purple);" onclick="setGraphView('entry_exit')">Entry / Exit</button>
+            <button class="run-all-btn" style="margin-top:0; background: #c62828;" onclick="setGraphView('risk_heatmap')">Risk Heatmap</button>
+            <button class="run-all-btn" style="margin-top:0; background: #1565c0;" onclick="setGraphView('coupling')">Coupling Clusters</button>
+        </div>
         <div id="graph-container"></div>
-        <div class="section-title">Architecture Summary</div>
+        <div class="section-title">Node Context / Architecture Summary</div>
         <div id="arch-summary" style="white-space: pre-wrap; font-size: 12px; line-height: 1.6; padding: 12px; background: var(--vscode-input-background); border-radius: 6px; max-height: 500px; overflow-y: auto;"></div>
         <div class="no-data" id="graph-empty">Run Layer 4 to see the knowledge graph</div>
     </div>
@@ -511,14 +523,19 @@ export function getPanelHTML(): string {
     }
 
     function runPipeline(n) {
-        if (pipeState[n] === 'running' || pipeState[n] === 'locked') return;
+        console.log('[AIL-UI] runPipeline called for layer', n, 'state:', pipeState[n]);
+        if (pipeState[n] === 'running' || pipeState[n] === 'locked') {
+            console.log('[AIL-UI] Blocked — state is', pipeState[n]);
+            return;
+        }
         pipeState[n] = 'running';
         updatePipeCard(n);
+        console.log('[AIL-UI] posting message runLayer' + n);
         vscode.postMessage({ command: 'runLayer' + n });
     }
 
     function runAllPipeline() {
-        // Reset states to idle (if not locked) to force a full run
+        console.log('[AIL-UI] runAllPipeline called');
         for (let i = 1; i <= 5; i++) {
             if (pipeState[i] !== 'locked') {
                 pipeState[i] = 'idle';
@@ -529,7 +546,7 @@ export function getPanelHTML(): string {
     }
 
     function purgeCache() {
-        // Reset all states locally
+        console.log('[AIL-UI] purgeCache called');
         for (let i = 1; i <= 5; i++) {
             pipeState[i] = 'idle';
             updatePipeCard(i);
@@ -664,33 +681,77 @@ export function getPanelHTML(): string {
     }
 
     function renderComplexity() {
-        const data = dashData.l2_complexity;
-        if (!data || !data.functions?.length) {
+        // Now renders RPI-based Risk leaderboard from graph data
+        const graph = dashData.l4_graph;
+        if (!graph || !graph.nodes) {
+            // Fallback to old complexity data
+            const data = dashData.l2_complexity;
+            if (!data || !data.functions?.length) {
+                document.getElementById('complexity-empty').style.display = 'block';
+                document.getElementById('complexity-table').style.display = 'none';
+                document.getElementById('complexity-stats').innerHTML = '';
+                return;
+            }
+            document.getElementById('complexity-empty').style.display = 'none';
+            document.getElementById('complexity-table').style.display = '';
+            document.getElementById('complexity-stats').innerHTML =
+                statCard(data.totalFunctions, 'Functions')
+                + statCard(data.avgCyclomatic, 'Avg Complexity')
+                + statCard(data.complexFunctions?.length || 0, 'Complex (>10)');
+            const tbody = document.getElementById('complexity-tbody');
+            tbody.innerHTML = data.functions.slice(0, 100).map(function(f) {
+                const pct = Math.min(100, (f.cyclomatic / 25) * 100);
+                const cls = f.cyclomatic <= 5 ? 'low' : f.cyclomatic <= 10 ? 'med' : 'high';
+                return '<tr>'
+                    + '<td><strong>' + esc(f.entityName) + '</strong></td>'
+                    + '<td>' + esc(f.file) + '</td>'
+                    + '<td>' + f.cyclomatic + '</td>'
+                    + '<td>-</td><td>' + f.cyclomatic + '</td><td>0</td>'
+                    + '<td style="min-width:80px"><div class="complexity-bar"><div class="fill ' + cls + '" style="width:' + pct + '%"></div></div></td>'
+                    + '</tr>';
+            }).join('');
+            return;
+        }
+
+        // RPI-based Risk tab
+        var riskNodes = graph.nodes.filter(function(n) {
+            return (n.type === 'function' || n.type === 'method') && n.metadata && typeof n.metadata.riskScore === 'number';
+        });
+        riskNodes.sort(function(a, b) { return (b.metadata.riskScore || 0) - (a.metadata.riskScore || 0); });
+
+        if (riskNodes.length === 0) {
             document.getElementById('complexity-empty').style.display = 'block';
             document.getElementById('complexity-table').style.display = 'none';
             document.getElementById('complexity-stats').innerHTML = '';
             return;
         }
+
         document.getElementById('complexity-empty').style.display = 'none';
         document.getElementById('complexity-table').style.display = '';
 
-        const dist = data.complexityDistribution || {};
-        document.getElementById('complexity-stats').innerHTML =
-            statCard(data.totalFunctions, 'Functions')
-            + statCard(data.avgCyclomatic, 'Avg Complexity')
-            + statCard(data.avgNesting, 'Avg Nesting')
-            + statCard(data.complexFunctions?.length || 0, 'Complex (>10)');
+        var critical = riskNodes.filter(function(n) { return n.metadata.riskLevel === 'critical'; }).length;
+        var high = riskNodes.filter(function(n) { return n.metadata.riskLevel === 'high'; }).length;
+        var medium = riskNodes.filter(function(n) { return n.metadata.riskLevel === 'medium'; }).length;
 
-        const tbody = document.getElementById('complexity-tbody');
-        tbody.innerHTML = data.functions.slice(0, 100).map(f => {
-            const pct = Math.min(100, (f.cyclomatic / 25) * 100);
-            const cls = f.cyclomatic <= 5 ? 'low' : f.cyclomatic <= 10 ? 'med' : f.cyclomatic <= 20 ? 'high' : 'vhigh';
+        document.getElementById('complexity-stats').innerHTML =
+            statCard(riskNodes.length, 'Scored Functions')
+            + statCard(critical, 'Critical')
+            + statCard(high, 'High Risk')
+            + statCard(medium, 'Medium');
+
+        var tbody = document.getElementById('complexity-tbody');
+        tbody.innerHTML = riskNodes.slice(0, 100).map(function(n) {
+            var rpi = n.metadata.riskScore || 0;
+            var pct = Math.min(100, rpi * 100);
+            var cls = rpi >= 0.75 ? 'vhigh' : rpi >= 0.5 ? 'high' : rpi >= 0.25 ? 'med' : 'low';
+            var levelTag = '<span class="tag ' + (n.metadata.riskLevel === 'critical' ? 'hot' : n.metadata.riskLevel === 'high' ? 'hot' : n.metadata.riskLevel === 'medium' ? 'stale' : '') + '">' + (n.metadata.riskLevel || 'low').toUpperCase() + '</span>';
             return '<tr>'
-                + '<td><strong>' + esc(f.entityName) + '</strong></td>'
-                + '<td>' + esc(f.file) + '</td>'
-                + '<td>' + f.cyclomatic + '</td>'
-                + '<td>' + f.nestingDepth + '</td>'
-                + '<td>' + f.lineCount + '</td>'
+                + '<td><strong>' + esc(n.name) + '</strong></td>'
+                + '<td>' + esc(n.file || '') + '</td>'
+                + '<td><strong>' + rpi.toFixed(3) + '</strong></td>'
+                + '<td>' + levelTag + '</td>'
+                + '<td>' + (n.metadata.complexity || 0) + '</td>'
+                + '<td>' + (n.metadata.fileChurn || 0) + '</td>'
                 + '<td style="min-width:80px"><div class="complexity-bar"><div class="fill ' + cls + '" style="width:' + pct + '%"></div></div></td>'
                 + '</tr>';
         }).join('');
@@ -761,9 +822,57 @@ export function getPanelHTML(): string {
                     + '</tr>';
             }).join('');
         }
+
+        // Blast radius section
+        var blastContainer = document.getElementById('blast-radius-container');
+        if (dashData.l3_blast && blastContainer) {
+            var blast = dashData.l3_blast;
+            var html = '<div style="padding: 10px; background: var(--vscode-input-background); border-radius: 6px;">';
+            html += '<div style="margin-bottom:8px;"><strong>Average blast radius:</strong> ' + (blast.avgBlastRadius || 0) + ' files/commit</div>';
+            if (blast.maxBlastRadius) {
+                var max = blast.maxBlastRadius;
+                html += '<div style="margin-bottom:8px;"><strong>Highest impact:</strong> ' + (max.hash || '').slice(0, 7) + ' by ' + esc(max.author || '') + '</div>';
+                html += '<div style="color:#aaa;">' + (max.directCount || 0) + ' files changed, ' + (max.transitiveCount || 0) + ' downstream impacted</div>';
+                if (max.message) html += '<div style="font-style:italic; color:#888; margin-top:4px;">"' + esc(max.message) + '"</div>';
+            }
+            if (blast.highImpactCommits && blast.highImpactCommits.length > 0) {
+                html += '<div style="margin-top: 10px;"><strong>High-impact commits:</strong></div>';
+                blast.highImpactCommits.slice(0, 5).forEach(function(c) {
+                    html += '<div style="padding:4px 0; border-bottom:1px solid var(--vscode-panel-border);">';
+                    html += '<span style="color:var(--vscode-charts-yellow);">' + (c.hash || '').slice(0, 7) + '</span> ';
+                    html += esc(c.message || '') + ' - blast: ' + c.blastRadius + ' (' + c.directCount + ' direct + ' + c.transitiveCount + ' transitive)';
+                    html += '</div>';
+                });
+            }
+            html += '</div>';
+            blastContainer.innerHTML = html;
+        }
+
+        // Coupling section
+        var couplingContainer = document.getElementById('coupling-container');
+        if (dashData.l3_coupling && couplingContainer) {
+            var coupling = dashData.l3_coupling;
+            if (coupling.stronglyCoupled && coupling.stronglyCoupled.length > 0) {
+                var chtml = '<div style="padding: 10px; background: var(--vscode-input-background); border-radius: 6px;">';
+                coupling.stronglyCoupled.slice(0, 10).forEach(function(p) {
+                    var pct = (p.couplingStrength * 100).toFixed(0);
+                    var color = p.couplingStrength > 0.8 ? 'var(--vscode-charts-red)' : p.couplingStrength > 0.5 ? 'var(--vscode-charts-yellow)' : 'var(--vscode-charts-green)';
+                    chtml += '<div style="padding:6px 0; border-bottom:1px solid var(--vscode-panel-border); display:flex; justify-content:space-between;">';
+                    chtml += '<span>' + esc(p.fileA) + ' &harr; ' + esc(p.fileB) + '</span>';
+                    chtml += '<span style="color:' + color + '; font-weight:bold;">' + pct + '%</span>';
+                    chtml += '</div>';
+                });
+                chtml += '</div>';
+                couplingContainer.innerHTML = chtml;
+            } else {
+                couplingContainer.innerHTML = '<div style="color:#888; font-style:italic;">No strongly coupled file pairs detected.</div>';
+            }
+        }
     }
 
     let network = null;
+    let visNodes = null;
+    let visEdges = null;
 
     function renderGraph() {
         const graph = dashData.l4_graph;
@@ -792,6 +901,15 @@ export function getPanelHTML(): string {
         }
 
         if (graph?.nodes && graph?.edges) {
+            // Compute in/out degrees for entry/exit views
+            const inDegree = {};
+            const outDegree = {};
+            graph.nodes.forEach(n => { inDegree[n.id] = 0; outDegree[n.id] = 0; });
+            graph.edges.forEach(e => {
+                if(outDegree[e.source] !== undefined) outDegree[e.source]++;
+                if(inDegree[e.target] !== undefined) inDegree[e.target]++;
+            });
+
             // Render interactive graph
             const colors = {
                 file: '#2B5B84',
@@ -802,7 +920,11 @@ export function getPanelHTML(): string {
                 interface: '#2F4F4F'
             };
 
-            const visNodes = new vis.DataSet(graph.nodes.map(n => ({
+            if (!visNodes) visNodes = new vis.DataSet();
+            if (!visEdges) visEdges = new vis.DataSet();
+
+            visNodes.clear();
+            visNodes.add(graph.nodes.map(n => ({
                 id: n.id,
                 label: esc(n.name),
                 group: n.type,
@@ -813,7 +935,9 @@ export function getPanelHTML(): string {
                 size: n.type === 'file' ? undefined : 15
             })));
 
-            const visEdges = new vis.DataSet(graph.edges.map(e => ({
+            visEdges.clear();
+            visEdges.add(graph.edges.map(e => ({
+                id: e.source + '->' + e.target,
                 from: e.source,
                 to: e.target,
                 label: esc(e.type),
@@ -822,6 +946,68 @@ export function getPanelHTML(): string {
                 color: { color: '#444', highlight: '#888' },
                 width: e.weight > 1 ? Math.min(e.weight, 5) : 1
             })));
+
+            window.setGraphView = function(mode) {
+                if (!network) return;
+                const allNodes = visNodes.get();
+                const allEdges = visEdges.get();
+
+                if (mode === 'overall') {
+                    visNodes.update(allNodes.map(n => ({ id: n.id, color: { opacity: 1 }, font: { color: 'rgba(255,255,255,1)' } })));
+                    visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 1 } })));
+                } else if (mode === 'entry_exit') {
+                    visNodes.update(allNodes.map(n => {
+                        const isEntry = inDegree[n.id] === 0 && outDegree[n.id] > 0;
+                        const isExit = outDegree[n.id] === 0 && inDegree[n.id] > 0;
+                        if (isEntry) return { id: n.id, color: { border: '#4CAF50', background: '#2E7D32', opacity: 1 }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 3 };
+                        if (isExit) return { id: n.id, color: { border: '#F44336', background: '#C62828', opacity: 1 }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 3 };
+                        return { id: n.id, color: { opacity: 0.1 }, font: { color: 'rgba(255,255,255,0.1)' }, borderWidth: 1 };
+                    }));
+                    visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.1 } })));
+                } else if (mode === 'risk_heatmap') {
+                    // Color by RPI score: green (safe) -> yellow (medium) -> red (critical)
+                    visNodes.update(allNodes.map(n => {
+                        var gNode = graph.nodes.find(function(gn) { return gn.id === n.id; });
+                        if (!gNode || typeof gNode.metadata.riskScore !== 'number') {
+                            return { id: n.id, color: { background: '#333', border: '#555', opacity: 0.4 }, font: { color: 'rgba(255,255,255,0.4)' }, borderWidth: 1 };
+                        }
+                        var rpi = gNode.metadata.riskScore;
+                        var bg, border;
+                        if (rpi >= 0.75) { bg = '#C62828'; border = '#F44336'; }
+                        else if (rpi >= 0.5) { bg = '#E65100'; border = '#FF9800'; }
+                        else if (rpi >= 0.25) { bg = '#F9A825'; border = '#FFEB3B'; }
+                        else { bg = '#2E7D32'; border = '#4CAF50'; }
+                        return { id: n.id, color: { background: bg, border: border, opacity: 1 }, font: { color: '#fff' }, borderWidth: 2, size: 10 + rpi * 25 };
+                    }));
+                    visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.15 } })));
+                } else if (mode === 'coupling') {
+                    // Highlight co-changed file pairs
+                    var coupledFiles = new Set();
+                    if (dashData.l3_coupling && dashData.l3_coupling.stronglyCoupled) {
+                        var clusterColors = ['#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#FF9800', '#795548'];
+                        var clusterIdx = 0;
+                        var fileColorMap = {};
+                        dashData.l3_coupling.stronglyCoupled.slice(0, 15).forEach(function(p) {
+                            var color = clusterColors[clusterIdx % clusterColors.length];
+                            if (!fileColorMap[p.fileA]) fileColorMap[p.fileA] = color;
+                            if (!fileColorMap[p.fileB]) fileColorMap[p.fileB] = color;
+                            coupledFiles.add(p.fileA);
+                            coupledFiles.add(p.fileB);
+                            clusterIdx++;
+                        });
+
+                        visNodes.update(allNodes.map(n => {
+                            var gNode = graph.nodes.find(function(gn) { return gn.id === n.id; });
+                            var file = gNode && gNode.file ? gNode.file : n.id.replace('file::', '');
+                            if (fileColorMap[file]) {
+                                return { id: n.id, color: { background: fileColorMap[file], border: '#fff', opacity: 1 }, font: { color: '#fff' }, borderWidth: 3 };
+                            }
+                            return { id: n.id, color: { opacity: 0.1 }, font: { color: 'rgba(255,255,255,0.1)' }, borderWidth: 1 };
+                        }));
+                    }
+                    visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.1 } })));
+                }
+            };
 
             if (!network) {
                 const container = document.getElementById('graph-container');
@@ -870,37 +1056,80 @@ export function getPanelHTML(): string {
                         // Populate summary block with node details
                         const nodeData = graph.nodes.find(n => n.id === nodeId);
                         if (nodeData) {
-                            let detailHtml = `< h3 > ${ esc(nodeData.name) } </h3>`;
-    detailHtml += `<p><strong>Type:</strong> ${esc(nodeData.type)}</p>`;
-    detailHtml += `<p><strong>File:</strong> ${esc(nodeData.file)}</p>`;
-    if (nodeData.metadata) {
-        detailHtml += `<pre style="background:#1e1e1e; padding:8px; border-radius:4px; margin-top:8px;">${esc(JSON.stringify(nodeData.metadata, null, 2))}</pre>`;
-    }
-    document.getElementById('arch-summary').innerHTML = detailHtml;
+                            let detailHtml = '<h3>' + esc(nodeData.name) + '</h3>';
+                            detailHtml += '<p><strong>Type:</strong> ' + esc(nodeData.type) + '</p>';
+                            detailHtml += '<p><strong>File:</strong> ' + esc(nodeData.file) + '</p>';
+                            if (nodeData.metadata) {
+                                detailHtml += '<pre style="background:#1e1e1e; padding:8px; border-radius:4px; margin-top:8px;">' + esc(JSON.stringify(nodeData.metadata, null, 2)) + '</pre>';
+                            }
+                            document.getElementById('arch-summary').innerHTML = detailHtml;
 }
 
                     } else {
     // Reset all opacities if no node is selected
-    const allNodes = visNodes.get().map(n => ({ id: n.id, color: { opacity: 1 }, font: { color: 'rgba(255,255,255,1)' } }));
+    const allNodes = visNodes.get().map(n => ({ id: n.id, color: { opacity: 1, border: '#111', background: colors[n.group] || '#555' }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 1 }));
     const allEdges = visEdges.get().map(e => ({ id: e.id, color: { opacity: 1 } }));
     visNodes.update(allNodes);
     visEdges.update(allEdges);
 
     // Restore architectural summary
     if (summary?.markdownReport) {
-        document.getElementById('arch-summary').innerHTML = esc(summary.markdownReport).replace(/\n/g, '<br>');
+        document.getElementById('arch-summary').innerHTML = esc(summary.markdownReport).replace(new RegExp('\\n', 'g'), '<br>');
     } else {
         document.getElementById('arch-summary').innerHTML = 'Global architectural summary unavailable. Select a node to view its specific details.';
     }
 }
                 });
-            } else {
-    network.setData({ nodes: visNodes, edges: visEdges });
-}
+
+// Right-click context handler
+network.on("oncontext", function (params) {
+    params.event.preventDefault();
+    const nodeId = network.getNodeAt(params.pointer.DOM);
+    if (!nodeId) return;
+
+    const nodeData = graph.nodes.find(n => n.id === nodeId);
+    if (!nodeData) return;
+
+    let html = '<h3>Context: ' + esc(nodeData.name) + '</h3>';
+
+    // Traces
+    const connectedEdges = graph.edges.filter(e => e.source === nodeId || e.target === nodeId);
+    const incoming = connectedEdges.filter(e => e.target === nodeId).map(e => esc(e.source));
+    const outgoing = connectedEdges.filter(e => e.source === nodeId).map(e => esc(e.target));
+
+    html += '<div style="margin-top:10px; padding:8px; background:#1e1e1e; border-radius:4px;">';
+    html += '<strong>Incoming Calls (' + incoming.length + '):</strong><br/> <span style="color:#aaa">' + (incoming.slice(0, 10).join('<br/>') || 'None') + ' ' + (incoming.length > 10 ? '...' : '') + '</span><br/><br/>';
+    html += '<strong>Outgoing Calls (' + outgoing.length + '):</strong><br/> <span style="color:#aaa">' + (outgoing.slice(0, 10).join('<br/>') || 'None') + ' ' + (outgoing.length > 10 ? '...' : '') + '</span>';
+    html += '</div>';
+
+    // Git History (if file)
+    if (nodeData.type === 'file' && dashData.l3_churn?.files) {
+        const churnData = dashData.l3_churn.files.find(f => f.file === nodeData.file);
+        if (churnData) {
+            html += '<div style="margin-top:10px; padding:8px; background:#1e1e1e; border-radius:4px; border-left: 3px solid var(--vscode-charts-orange);">';
+            html += '<strong>Git History:</strong><br/>';
+            html += 'Commits: ' + churnData.commits + '<br/>';
+            html += 'Lines Added: <span style="color:var(--vscode-charts-green)">+' + churnData.insertions + '</span><br/>';
+            html += 'Lines Deleted: <span style="color:var(--vscode-charts-red)">-' + churnData.deletions + '</span><br/>';
+            html += 'Last Modified: <span style="color:#888">' + new Date(churnData.lastModified).toLocaleDateString() + '</span><br/>';
+            html += 'Status: ' + (churnData.isHot ? '<span class="tag hot">HOT</span>' : churnData.isStale ? '<span class="tag stale">STALE</span>' : '<span class="tag" style="background:#444">NORMAL</span>') + '<br/>';
+            html += '</div>';
+        } else {
+            html += '<p style="color:#888; font-style:italic; margin-top:10px;">No Git churn history found for this file.</p>';
+        }
+    } else if (nodeData.type !== 'file') {
+        html += '<p style="color:#888; font-style:italic; margin-top:10px;">Right-click a File node to see exact Git history metrics.</p>';
+    }
+
+    document.getElementById('arch-summary').innerHTML = html;
+});
+
+            }
+            // DataSet mutation handles the update automatically natively now.
         }
     }
 
-function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function esc(s) { var t = String(s || ''); t = t.replace(new RegExp('&', 'g'), '&amp;'); t = t.replace(new RegExp('<', 'g'), '&lt;'); t = t.replace(new RegExp('>', 'g'), '&gt;'); return t; }
 
 // ── Chat functions ──
 let chatContextHistory = [];

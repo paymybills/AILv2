@@ -4,8 +4,10 @@ import * as vscode from 'vscode';
 import { runCheckpoint1 } from './checkpoints/cp1_commit_history';
 import { runCheckpoint2 } from './checkpoints/cp2_contributors';
 import { runCheckpoint3 } from './checkpoints/cp3_file_churn';
-import { runCheckpoint4 } from './checkpoints/cp4_assemble_manifest';
-import { runCheckpoint5 } from './checkpoints/cp5_notify';
+import { runCheckpoint4 } from './checkpoints/cp4_co_change';
+import { runCheckpoint5 } from './checkpoints/cp5_blast_radius';
+import { runCheckpoint6 } from './checkpoints/cp4_assemble_manifest';
+import { runCheckpoint7 } from './checkpoints/cp5_notify';
 
 /**
  * Run Layer 3 — Git Intelligence pipeline.
@@ -62,6 +64,8 @@ export function runLayer3(): void {
     const commitResult = runCheckpoint1(gitRepos, workspacePath, analysisDir);
     const contribResult = runCheckpoint2(gitRepos, workspacePath, analysisDir);
     const churnResult = runCheckpoint3(gitRepos, workspacePath, analysisDir);
-    const manifest = runCheckpoint4(commitResult, contribResult, churnResult, layer3Dir);
-    runCheckpoint5(manifest);
+    const coChangeResult = runCheckpoint4(gitRepos, workspacePath, analysisDir);
+    const blastResult = runCheckpoint5(gitRepos, workspacePath, analysisDir);
+    const manifest = runCheckpoint6(commitResult, contribResult, churnResult, coChangeResult, blastResult, layer3Dir);
+    runCheckpoint7(manifest);
 }

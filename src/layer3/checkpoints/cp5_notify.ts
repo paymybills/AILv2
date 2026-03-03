@@ -2,18 +2,19 @@ import * as vscode from 'vscode';
 import { Layer3Manifest } from './cp4_assemble_manifest';
 
 /**
- * CP5: VS Code notification for Layer 3 completion.
+ * CP7: VS Code notification for Layer 3 completion (formerly CP5).
  */
-export function runCheckpoint5(manifest: Layer3Manifest): void {
+export function runCheckpoint7(manifest: Layer3Manifest): void {
     const s = manifest.summary;
     const msg = [
         `✓ Layer 3 complete`,
         `${s.totalCommits} commits`,
         `${s.totalContributors} contributors`,
         `${s.hotFileCount} hot files`,
-        `${s.staleFileCount} stale files`,
+        `${s.stronglyCoupledPairs} coupled pairs`,
+        `avg blast radius: ${s.avgBlastRadius}`,
     ].join(' · ');
 
     vscode.window.showInformationMessage(msg);
-    console.log('AIL L3-CP5 |', msg);
+    console.log('AIL L3-CP7 |', msg);
 }

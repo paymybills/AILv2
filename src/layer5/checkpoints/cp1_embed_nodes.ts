@@ -26,8 +26,8 @@ export async function runCheckpoint1(workspacePath: string, indexDir: string): P
 
     const vscode = require('vscode');
     const config = vscode.workspace.getConfiguration('ail');
-    const provider = config.get<'azure' | 'gemini'>('aiProvider') || 'azure';
-    const disableEmbeddings = config.get<boolean>('disableEmbeddings') || false;
+    const provider = config.get('aiProvider') || 'azure';
+    const disableEmbeddings = config.get('disableEmbeddings') || false;
 
     const graphData = JSON.parse(fs.readFileSync(graphPath, 'utf8'));
     const nodes = graphData.nodes || [];
@@ -43,12 +43,27 @@ export async function runCheckpoint1(workspacePath: string, indexDir: string): P
         }
 
         // Generate a rich text representation for embedding
-        let textRep = `Type: ${node.type}\nName: ${node.name}\nFile: ${node.file || 'unknown'}`;
+        let textRep = 'Type: ' + node.type + ' | Name: ' + node.name + ' | File: ' + (node.file || 'unknown');
         if (node.metadata?.churnScore) {
-            textRep += `\nGit Churn Score: ${node.metadata.churnScore} (commits: ${node.metadata.commits})`;
+            textRep += ' | Git Churn: ' + node.metadata.churnScore + ' (commits: ' + node.metadata.commits + ')';
+        }
+        if (node.metadata?.riskScore !== undefined) {
+            textRep += ' | Risk: ' + node.metadata.riskScore + ' (' + (node.metadata.riskLevel || 'unknown') + ')';
+        }
+        if (node.metadata?.complexity) {
+            textRep += ' | Complexity: ' + node.metadata.complexity;
+        }
+        if (node.metadata?.coupling) {
+            textRep += ' | Coupling: ' + node.metadata.coupling;
         }
         if (node.metadata?.params) {
-            textRep += `\nSignature: ${node.name}(${node.metadata.params.join(', ')})`;
+            textRep += ' | Signature: ' + node.name + '(' + node.metadata.params.join(', ') + ')';
+        }
+        if (node.metadata?.isHot) {
+            textRep += ' | HOT FILE (high churn)';
+        }
+        if (node.metadata?.isStale) {
+            textRep += ' | STALE (no recent changes)';
         }
 
         nodeEmbeddings.push({
@@ -63,7 +78,7 @@ export async function runCheckpoint1(workspacePath: string, indexDir: string): P
 
     if (!disableEmbeddings) {
         if (provider === 'gemini') {
-            const apiKey = config.get<string>('geminiApiKey');
+            const apiKey = config.get('geminiApiKey');
             if (!apiKey) {
                 console.warn(`[AIL] Gemini API key not set. Skipping embeddings generation.`);
             } else {
@@ -97,9 +112,9 @@ export async function runCheckpoint1(workspacePath: string, indexDir: string): P
                 }
             }
         } else if (provider === 'azure') {
-            const endpoint = config.get<string>('azureOpenAiEndpoint');
-            const apiKey = config.get<string>('azureOpenAiApiKey');
-            const deployment = config.get<string>('azureOpenAiEmbedDeployment') || 'text-embedding-ada-002';
+            const endpoint = config.get('azureOpenAiEndpoint');
+            const apiKey = config.get('azureOpenAiApiKey');
+            const deployment = config.get('azureOpenAiEmbedDeployment') || 'text-embedding-ada-002';
 
             if (!endpoint || !apiKey) {
                 console.warn(`[AIL] Azure OpenAI embed settings missing. Skipping embeddings.`);

@@ -36,6 +36,7 @@ export class PanelManager {
 
         panel.webview.onDidReceiveMessage(
             message => {
+                console.log('[AIL-EXT] Received message from webview:', message.command);
                 switch (message.command) {
                     case 'runLayer1':
                         panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'running' });
@@ -165,6 +166,8 @@ export class PanelManager {
         tryRead('l3_commits', path.join(ailRoot, 'layer3', 'analysis', 'commit_history.json'));
         tryRead('l3_contributors', path.join(ailRoot, 'layer3', 'analysis', 'contributors.json'));
         tryRead('l3_churn', path.join(ailRoot, 'layer3', 'analysis', 'file_churn.json'));
+        tryRead('l3_blast', path.join(ailRoot, 'layer3', 'analysis', 'blast_radius.json'));
+        tryRead('l3_coupling', path.join(ailRoot, 'layer3', 'analysis', 'co_change.json'));
         tryRead('l3_manifest', path.join(ailRoot, 'layer3', 'meta-data.json'));
         // Layer 4
         tryRead('l4_graph', path.join(ailRoot, 'layer4', 'analysis', 'knowledge_graph.json'));
